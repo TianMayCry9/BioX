@@ -65,7 +65,7 @@ biox -d -t dna input.biox
 biox -d -n 4 input.biox
 
 # Specify output file
-biox -d -o output.fasta input.biox
+biox -d -t dna -o output.fasta input.biox
 ```
 
 ### Parameter Overview

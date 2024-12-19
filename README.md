@@ -21,17 +21,34 @@ BioX is an efficient, lossless compression tool designed specifically for biolog
 conda install -c bioconda biox
 ```
 
-### Build from source
+### Build from Source
 
-Prerequisites: Python 3.6+, pip, numpy, tqdm
+**Prerequisites:**
+- Python 3.6 or higher
+- pip
+- numpy
+- tqdm
 
+**Installation Steps:**
+
+1. Clone the repository:
 ```bash
-# Clone the repository
 git clone https://github.com/TianxXiao/biox.git
-
-# Navigate into the directory and install
 cd biox
+```
+2. Choose one of the following installation methods:
+- Option 1 (Recommended):
+```bash
 pip install .
+```
+- Option 2 (Linux/Mac):
+```bash
+chmod +x install.sh
+./install.sh
+```
+- Option 3 (Windows):
+```bash
+install.bat
 ```
 
 ## Usage

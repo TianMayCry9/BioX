@@ -7,17 +7,18 @@ setup(
     author="Tianx Xiao",
     author_email="x1058513236l@gmail.com",
     url="https://github.com/TianMayCry9/BioX",
-    packages=find_packages(),
-    entry_points={
-        'console_scripts': [
-            'biox=src.biox:main',
-        ],
-    },
+    packages=['src'],
+    package_dir={'src': 'src'},
     install_requires=[
         "numpy>=1.19.0",
         "tqdm>=4.45.0",
         "multiprocess>=0.70.0",
     ],
+    entry_points={
+        'console_scripts': [
+            'biox=src.biox:main',
+        ],
+    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
@@ -29,4 +30,4 @@ setup(
         "Programming Language :: Python :: 3.9",
     ],
     python_requires=">=3.6",
-)
+) 

@@ -33,7 +33,7 @@ conda install -c bioconda biox
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/TianxXiao/biox.git
+git clone https://github.com/TianMayCry9/BioX.git
 cd biox
 ```
 2. Choose one of the following installation methods:

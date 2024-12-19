@@ -7,8 +7,8 @@ setup(
     author="Tianx Xiao",
     author_email="x1058513236l@gmail.com",
     url="https://github.com/TianMayCry9/BioX",
-    packages=find_packages(include=['src', 'src.*']),
-    package_dir={'': '.'},
+    packages=['src'],
+    package_dir={'src': 'src'},
     install_requires=[
         "numpy>=1.19.0",
         "tqdm>=4.45.0",

@@ -1,27 +1,27 @@
 import argparse
 import os
 import time
-from dna import (
+from .dna import (
     detect_file_format, read_fasta, read_fastq,
     dna_parallel_compress, dna_parallel_decompress,
     dna_parallel_compress_fasta, dna_parallel_decompress_fasta,
     dna_write_compressed_fastq, dna_write_compressed_fasta,
     dna_read_compressed_file
 )
-from rna import (
+from .rna import (
     rna_parallel_compress, rna_parallel_decompress,
     rna_parallel_compress_fasta, rna_parallel_decompress_fasta,
     rna_write_compressed_fastq, rna_write_compressed_fasta,
     rna_read_compressed_file
 )
 
-from protein import (
+from .protein import (
     protein_parallel_compress, protein_parallel_decompress,
     protein_write_compressed, protein_read_compressed,
     read_fasta as protein_read_fasta
 )
 
-from file import file_compress, file_decompress
+from .file import file_compress, file_decompress
 
 def main():
     parser = argparse.ArgumentParser(description='Biological Sequence Compression Tool')

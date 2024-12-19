@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biox"
+version = "1.0.0"
+description = "A universal biological sequence compressor"
+readme = "README.md"
+authors = [{name = "Tianx Xiao", email = "x1058513236l@gmail.com"}]
+license = {text = "GPL-3.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">=3.6"
+dependencies = [
+    "numpy>=1.19.0",
+    "tqdm>=4.45.0",
+    "multiprocess>=0.70.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/TianMayCry9/BioX"
+Repository = "https://github.com/TianMayCry9/BioX.git"
+
+[project.scripts]
+biox = "src.biox:main"

@@ -2,8 +2,8 @@ import lzma
 import multiprocessing
 from typing import List, Dict, Tuple, Any, Union
 import pickle
-from annotation import compress_annotation, decompress_annotation
-from quality import  encode_quality_smart, decode_quality_smart
+from .annotation import compress_annotation, decompress_annotation
+from .quality import  encode_quality_smart, decode_quality_smart
 
 
 def detect_file_format(file_path: str) -> str:

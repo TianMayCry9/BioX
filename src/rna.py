@@ -2,8 +2,8 @@ import lzma
 import multiprocessing
 from typing import List, Dict, Tuple, Any, Union
 import pickle
-from annotation import compress_annotation, decompress_annotation
-from quality import  encode_quality_smart, decode_quality_smart
+from .annotation import compress_annotation, decompress_annotation
+from .quality import  encode_quality_smart, decode_quality_smart
 
 
 def detect_file_format(file_path: str) -> str:
@@ -95,7 +95,7 @@ def decode_length(bits: List[int], start: int) -> Tuple[int, int]:
         return length, start + 34
 
 
-def dna_encode_sequence(sequence: str) -> bytes:
+def rna_encode_sequence(sequence: str) -> bytes:
     sequence = sequence.upper()
     segments = []
     current_type = None 
@@ -172,7 +172,7 @@ def dna_encode_sequence(sequence: str) -> bytes:
     
     return bytes(result_bytes)
 
-def dna_decode_sequence(compressed: bytes) -> str:
+def rna_decode_sequence(compressed: bytes) -> str:
     decoded = []
     
     bits = []
@@ -220,7 +220,7 @@ def dna_decode_sequence(compressed: bytes) -> str:
     
     return ''.join(decoded)
 
-DNA_CODES = {
+RNA_CODES = {
     'A': 0b00000000,
     'U': 0b00000001,
     'C': 0b00000010,
@@ -240,18 +240,18 @@ DNA_CODES = {
 
 CHUNK_SIZE = 8 * 1024 * 1024 * 1024
 
-def dna_encode_sequence_plant(sequence: str) -> bytes:
+def rna_encode_sequence_plant(sequence: str) -> bytes:
     sequence = sequence.upper() 
     result_bytes = bytearray()
     for char in sequence:
-        if char in DNA_CODES:
-            result_bytes.append(DNA_CODES[char])
+        if char in RNA_CODES:
+            result_bytes.append(RNA_CODES[char])
         else:
             result_bytes.append(ord(char))
     return bytes(result_bytes)
 
-def dna_decode_sequence_plant(compressed: bytes) -> str:
-    reverse_mapping = {code: base for base, code in DNA_CODES.items()}
+def rna_decode_sequence_plant(compressed: bytes) -> str:
+    reverse_mapping = {code: base for base, code in RNA_CODES.items()}
     return ''.join(reverse_mapping.get(byte, chr(byte)) for byte in compressed)
 
 def process_sequence_chunks(sequence: str, encode_func) -> bytes:
@@ -265,41 +265,41 @@ def process_sequence_chunks(sequence: str, encode_func) -> bytes:
     
     return bytes(result)
 
-def dna_compress_single_fasta_sequence(args: Tuple[str, str, bool]) -> Tuple[str, str]:
+def rna_compress_single_fasta_sequence(args: Tuple[str, str, bool]) -> Tuple[str, str]:
     annotation, sequence, is_plant = args
     if is_plant:
-        compressed_sequence = process_sequence_chunks(sequence, dna_encode_sequence_plant)
+        compressed_sequence = process_sequence_chunks(sequence, rna_encode_sequence_plant)
     else:
-        compressed_sequence = process_sequence_chunks(sequence, dna_encode_sequence)
+        compressed_sequence = process_sequence_chunks(sequence, rna_encode_sequence)
     return annotation, compressed_sequence
 
-def dna_compress_single_sequence(args: Tuple[str, str, bool, str, str]) -> Tuple[str, str, bool, str, Tuple[bytes, bytes, int]]:
+def rna_compress_single_sequence(args: Tuple[str, str, bool, str, str]) -> Tuple[str, str, bool, str, Tuple[bytes, bytes, int]]:
     annotation, sequence, is_plant, plus_line, quality = args
     if is_plant:
-        compressed_sequence = process_sequence_chunks(sequence, dna_encode_sequence_plant)
+        compressed_sequence = process_sequence_chunks(sequence, rna_encode_sequence_plant)
     else:
-        compressed_sequence = process_sequence_chunks(sequence, dna_encode_sequence)
+        compressed_sequence = process_sequence_chunks(sequence, rna_encode_sequence)
     compressed_quality, metadata, encoding_type = encode_quality_smart(quality)
     return annotation, compressed_sequence, plus_line, (compressed_quality, metadata, encoding_type)
 
-def dna_parallel_compress_fasta(sequences: List[Tuple[str, str]], 
+def rna_parallel_compress_fasta(sequences: List[Tuple[str, str]], 
                               processes: int = None,
                               is_plant: bool = False) -> List[Tuple[str, str]]:
     processes = processes or multiprocessing.cpu_count()
     sequences_with_flag = [(ann, seq, is_plant) for ann, seq in sequences]
     with multiprocessing.Pool(processes=processes) as pool:
-        return pool.map(dna_compress_single_fasta_sequence, sequences_with_flag)
+        return pool.map(rna_compress_single_fasta_sequence, sequences_with_flag)
 
 
-def dna_parallel_compress(sequences: List[Tuple[str, str, str, str]], 
+def rna_parallel_compress(sequences: List[Tuple[str, str, str, str]], 
                         processes: int = None, 
                         is_plant: bool = False) -> List[Tuple[str, str, str, Tuple[bytes, bytes, int]]]:
     processes = processes or multiprocessing.cpu_count()
     sequences_with_flag = [(ann, seq, is_plant, plus, qual) for ann, seq, plus, qual in sequences]
     with multiprocessing.Pool(processes=processes) as pool:
-        return pool.map(dna_compress_single_sequence, sequences_with_flag)
+        return pool.map(rna_compress_single_sequence, sequences_with_flag)
 
-def dna_write_compressed_fastq(data: List[Tuple[str, str, str, Tuple[bytes, bytes, int]]], output_file: str, compress_plus: bool = False, preset: int = 3, is_plant: bool = False):
+def rna_write_compressed_fastq(data: List[Tuple[str, str, str, Tuple[bytes, bytes, int]]], output_file: str, compress_plus: bool = False, preset: int = 3, is_plant: bool = False):
     annotations = [item[0] for item in data]
     annotation_patterns, variable_parts = compress_annotation(annotations)
 
@@ -327,7 +327,7 @@ def dna_write_compressed_fastq(data: List[Tuple[str, str, str, Tuple[bytes, byte
         f_out.write(compressed)
 
 
-def dna_write_compressed_fasta(data: List[Tuple[str, str]], output_file: str, preset: int = 3, is_plant: bool = False):
+def rna_write_compressed_fasta(data: List[Tuple[str, str]], output_file: str, preset: int = 3, is_plant: bool = False):
     annotations = [item[0] for item in data]
 
     annotation_patterns, variable_parts = compress_annotation(annotations)
@@ -344,7 +344,7 @@ def dna_write_compressed_fasta(data: List[Tuple[str, str]], output_file: str, pr
         compressed = lzma.compress(pickle.dumps(compressed_data), preset=preset)
         f_out.write(compressed)
 
-def dna_read_compressed_file(file_path: str) -> Tuple[str, Union[List[Tuple[str, str]], List[Tuple[str, str, str, Tuple[bytes, bytes, int]]]]]:
+def rna_read_compressed_file(file_path: str) -> Tuple[str, Union[List[Tuple[str, str]], List[Tuple[str, str, str, Tuple[bytes, bytes, int]]]]]:
     with open(file_path, 'rb') as f_in:
         compressed_data = pickle.loads(lzma.decompress(f_in.read()))
     
@@ -381,16 +381,16 @@ def dna_read_compressed_file(file_path: str) -> Tuple[str, Union[List[Tuple[str,
         
         return 'FASTQ', sequences
 
-def dna_decompress_single_fasta_sequence(compressed_data: Tuple[str, str, bool]) -> Tuple[str, str]:
+def rna_decompress_single_fasta_sequence(compressed_data: Tuple[str, str, bool]) -> Tuple[str, str]:
     annotation, compressed_sequence, is_plant = compressed_data
     if is_plant:
-        decompressed_sequence = dna_decode_sequence_plant(compressed_sequence)
+        decompressed_sequence = rna_decode_sequence_plant(compressed_sequence)
     else:
-        decompressed_sequence = dna_decode_sequence(compressed_sequence)
+        decompressed_sequence = rna_decode_sequence(compressed_sequence)
     return annotation, decompressed_sequence
 
 
-def dna_parallel_decompress_fasta(compressed_data: List[Tuple[str, str, bool]], 
+def rna_parallel_decompress_fasta(compressed_data: List[Tuple[str, str, bool]], 
                                 processes: int = None,
                                 is_plant: bool = False) -> List[Tuple[str, str]]:
     if len(compressed_data[0]) == 3:
@@ -399,17 +399,17 @@ def dna_parallel_decompress_fasta(compressed_data: List[Tuple[str, str, bool]],
         compressed_data_with_flag = [(ann, seq, is_plant) for ann, seq in compressed_data]
     
     with multiprocessing.Pool(processes=processes) as pool:
-        return pool.map(dna_decompress_single_fasta_sequence, compressed_data_with_flag)
+        return pool.map(rna_decompress_single_fasta_sequence, compressed_data_with_flag)
 
-def dna_decompress_single_sequence(compressed_data: Tuple[str, str, str, Tuple[bytes, bytes, int], bool]) -> Tuple[str, str, str, str]:
+def rna_decompress_single_sequence(compressed_data: Tuple[str, str, str, Tuple[bytes, bytes, int], bool]) -> Tuple[str, str, str, str]:
     try:
         annotation, compressed_sequence, plus_line, quality_data, is_plant = compressed_data
         compressed_quality, metadata, encoding_type = quality_data
 
         if is_plant:
-            decompressed_sequence = dna_decode_sequence_plant(compressed_sequence)
+            decompressed_sequence = rna_decode_sequence_plant(compressed_sequence)
         else:
-            decompressed_sequence = dna_decode_sequence(compressed_sequence)
+            decompressed_sequence = rna_decode_sequence(compressed_sequence)
         
         decompressed_quality = decode_quality_smart(compressed_quality, metadata, encoding_type)
         return annotation, decompressed_sequence, plus_line, decompressed_quality
@@ -417,7 +417,7 @@ def dna_decompress_single_sequence(compressed_data: Tuple[str, str, str, Tuple[b
         print(f"Error in decompress_single_sequence: {str(e)}")
         raise
 
-def dna_parallel_decompress(compressed_data: List[Tuple[str, bytes, str, Tuple[bytes, bytes, int]]], 
+def rna_parallel_decompress(compressed_data: List[Tuple[str, bytes, str, Tuple[bytes, bytes, int]]], 
                           processes: int = None, 
                           is_plant: bool = False) -> List[Tuple[str, str, str, str]]:
     try:
@@ -428,7 +428,7 @@ def dna_parallel_decompress(compressed_data: List[Tuple[str, bytes, str, Tuple[b
                               for ann, seq, plus, qual_data in compressed_data]
         
         with multiprocessing.Pool(processes=processes) as pool:
-            results = pool.map(dna_decompress_single_sequence, data_with_plant)
+            results = pool.map(rna_decompress_single_sequence, data_with_plant)
         
         return results
     except Exception as e:

@@ -61,9 +61,6 @@ biox -c -t dna -o output.biox input.fasta
 # Basic usage
 biox -d -t dna input.biox
 
-# Use multiprocessing for acceleration
-biox -d -n 4 input.biox
-
 # Specify output file
 biox -d -t dna -o output.fasta input.biox
 ```

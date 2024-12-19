@@ -1,3 +1,4 @@
+![image](https://github.com/TianMayCry9/BioX/blob/master/BioX.png)
 # BioX - Biological Sequence Compression Tool
 
 BioX is an efficient, lossless compression tool designed specifically for biological sequence data. It utilizes innovative compression algorithms to achieve high compression ratios and fast decompression speeds. It supports compression of DNA, RNA, protein sequences, and FASTQ data, and can handle sequences with or without quality scores. Fully supports FASTA and FASTQ formats, including all special characters, and there are no limitations on sequence length or quantity.

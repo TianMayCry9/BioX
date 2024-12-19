@@ -2,7 +2,7 @@ import lzma
 import multiprocessing
 from typing import List, Dict, Tuple, Any, Union
 import pickle
-from annotation import compress_annotation, decompress_annotation
+from .annotation import compress_annotation, decompress_annotation
 
 AMINO_ACID_GROUPS = {
     'A': 0b00000000,

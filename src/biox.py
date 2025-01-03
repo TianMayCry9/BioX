@@ -1,19 +1,15 @@
 import argparse
 import os
 import time
-from .dna import (
-    detect_file_format, read_fasta, read_fastq,
-    dna_parallel_compress, dna_parallel_decompress,
-    dna_parallel_compress_fasta, dna_parallel_decompress_fasta,
-    dna_write_compressed_fastq, dna_write_compressed_fasta,
-    dna_read_compressed_file
-)
-from .rna import (
-    rna_parallel_compress, rna_parallel_decompress,
-    rna_parallel_compress_fasta, rna_parallel_decompress_fasta,
-    rna_write_compressed_fastq, rna_write_compressed_fasta,
-    rna_read_compressed_file
-)
+from .dna import (detect_file_format, read_fasta, read_fastq,
+                dna_parallel_compress_fasta, dna_parallel_compress,
+                dna_write_compressed_fasta, dna_write_compressed_fastq,
+                dna_read_compressed_file, dna_parallel_decompress_fasta,
+                dna_parallel_decompress)
+from .rna import (rna_parallel_compress_fasta, rna_parallel_compress,
+                rna_write_compressed_fasta, rna_write_compressed_fastq,
+                rna_read_compressed_file, rna_parallel_decompress_fasta,
+                rna_parallel_decompress)
 
 from .protein import (
     protein_parallel_compress, protein_parallel_decompress,
@@ -31,20 +27,26 @@ def main():
     parser.add_argument('-t', '--type', choices=['dna', 'rna', 'protein', 'file'], 
                        required=True, help='Sequence type (dna/rna/protein) or regular file')
     parser.add_argument('-l', '--level', type=int, choices=range(1, 10), 
-                       default=3, help='Compression level (1-9, default: 5)')
+                       default=9, help='Compression level (1-9, default: 9)')
     parser.add_argument('-ps', '--plus_line', choices=['ignore', 'compress'], 
                        default='ignore', help='FASTQ plus line handling')
     parser.add_argument('-n', '--num_processes', type=int, default=None, 
                        help=f'Number of parallel processes')
     parser.add_argument('-p', '--plant', action='store_true', help='Use plant genome compression scheme')
+    parser.add_argument('-s', '--split', type=int, choices=range(2, 11),
+                       help='Split output into N volumes (2-10)')
     parser.add_argument('-o', '--output', help='Output file path (default: input_file.biox)')
-
+    
     args = parser.parse_args()
 
     if not args.output:
         if args.decompress:
             if args.input_file.endswith('.biox'):
                 args.output = args.input_file[:-5] + '.decoded'
+            elif args.input_file.endswith('.biox.001'):
+                args.output = args.input_file[:-9] + '.decoded'
+            else:
+                args.output = args.input_file + '.decoded'
         else:
             args.output = args.input_file + '.biox'
 
@@ -143,24 +145,35 @@ def main():
                 start_time = time.time()
                 if args.type == 'dna' or args.type == 'rna':
                     compressed_data = parallel_compress(sequences, 
-                                                        processes=args.num_processes,
-                                                        is_plant=args.plant)
+                                                     processes=args.num_processes,
+                                                     is_plant=args.plant)
                 else:
                     compressed_data = parallel_compress(sequences, 
-                                                        processes=args.num_processes)
+                                                     processes=args.num_processes)
                 
                 if file_format == 'fastq':
                     write_compressed(compressed_data, args.output, 
-                                  compress_plus=compress_plus, preset=args.level)
+                                  compress_plus=compress_plus, preset=args.level,
+                                  is_plant=args.plant if args.type in ['dna', 'rna'] else False,
+                                  num_volumes=args.split)
                 else:
                     write_compressed(compressed_data, args.output, 
                                   preset=args.level,
-                                  is_plant=args.plant if args.type in ['dna', 'rna'] else False)
+                                  is_plant=args.plant if args.type in ['dna', 'rna'] else False,
+                                  num_volumes=args.split)
                 
                 end_time = time.time()
                 compress_time = end_time - start_time
 
-            compressed_size = os.path.getsize(args.output)
+                if args.split:
+                    compressed_size = 0
+                    for i in range(1, args.split + 1):
+                        volume_path = f"{args.output}.{i:03d}"
+                        if os.path.exists(volume_path):
+                            compressed_size += os.path.getsize(volume_path)
+                else:
+                    compressed_size = os.path.getsize(args.output)
+
             compression_ratio = compressed_size / original_size 
 
             print(f"\nCompression completed:")
@@ -168,6 +181,14 @@ def main():
             print(f"- Compressed size: {compressed_size / 1024 / 1024:.2f} MB")
             print(f"- Compression ratio: {compression_ratio:.2f}x")
             print(f"- Processing speed: {total_sequences / compress_time:.2f} sequences/second")
+            
+            if args.split:
+                print("\nVolume sizes:")
+                for i in range(1, args.split + 1):
+                    volume_path = f"{args.output}.{i:03d}"
+                    if os.path.exists(volume_path):
+                        volume_size = os.path.getsize(volume_path)
+                        print(f"- Volume {i:03d}: {volume_size / 1024 / 1024:.2f} MB")
 
         else:
             print(f"\nReading compressed file: {args.input_file}")

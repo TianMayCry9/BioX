@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple, Any, Union
 import pickle
 from .annotation import compress_annotation, decompress_annotation
 from .quality import  encode_quality_smart, decode_quality_smart
+import os
 
 
 def detect_file_format(file_path: str) -> str:
@@ -14,7 +15,7 @@ def detect_file_format(file_path: str) -> str:
         elif first_line.startswith('@'):
             return 'fastq'
         else:
-            raise ValueError("Error")
+            raise ValueError("Invalid file format: must be FASTA or FASTQ")
 
 
 def read_fasta(file_path: str) -> List[Tuple[str, str]]:
@@ -299,33 +300,140 @@ def dna_parallel_compress(sequences: List[Tuple[str, str, str, str]],
     with multiprocessing.Pool(processes=processes) as pool:
         return pool.map(dna_compress_single_sequence, sequences_with_flag)
 
-def dna_write_compressed_fastq(data: List[Tuple[str, str, str, Tuple[bytes, bytes, int]]], output_file: str, compress_plus: bool = False, preset: int = 3, is_plant: bool = False):
-    annotations = [item[0] for item in data]
-    annotation_patterns, variable_parts = compress_annotation(annotations)
+def split_sequences(sequences: List[Tuple], num_volumes: int) -> List[List[Tuple]]:
+    if not 2 <= num_volumes <= 10:
+        raise ValueError("Number of volumes must be between 2 and 10")
+    
+    total_sequences = len(sequences)
+    sequences_per_volume = total_sequences // num_volumes
+    remainder = total_sequences % num_volumes
+    
+    volumes = []
+    start = 0
+    
+    for i in range(num_volumes):
+        count = sequences_per_volume + (1 if i < remainder else 0)
+        end = start + count
+        volumes.append(sequences[start:end])
+        start = end
+    
+    return volumes
 
-    plus_patterns = None
-    plus_variables = None
-    if compress_plus:
-        plus_lines = [item[2] for item in data]
-        plus_patterns, plus_variables = compress_annotation(plus_lines)
-
-    sequences_data = [(seq, qual_data) for _, seq, _, qual_data in data]
- 
-    compressed_data = {
-        'format': 'FASTQ',
-        'is_plant': is_plant,  
-        'annotation_patterns': annotation_patterns,
-        'variable_parts': variable_parts,
-        'plus_compressed': compress_plus,
-        'plus_patterns': plus_patterns,
-        'plus_variables': plus_variables,
-        'sequences': sequences_data
+def write_volume_header(f_out: Any, volume_info: dict):
+    header = {
+        'total_volumes': volume_info['total_volumes'],
+        'volume_number': volume_info['volume_number'],
+        'sequence_count': volume_info['sequence_count'],
+        'original_filename': volume_info['original_filename'],
+        'format': volume_info['format'],
+        'is_plant': volume_info['is_plant']
     }
+    header_bytes = pickle.dumps(header)
+    f_out.write(len(header_bytes).to_bytes(4, byteorder='big'))
+    f_out.write(header_bytes)
 
+def read_volume_header(f_in: Any) -> dict:
+    header_length = int.from_bytes(f_in.read(4), byteorder='big')
+    header_bytes = f_in.read(header_length)
+    return pickle.loads(header_bytes)
+
+def dna_write_compressed_fastq_volume(data: List[Tuple[str, str, str, Tuple[bytes, bytes, int]]], 
+                                    base_output_file: str,
+                                    volume_number: int,
+                                    total_volumes: int,
+                                    compress_plus: bool = False,
+                                    preset: int = 3,
+                                    is_plant: bool = False):
+    output_file = f"{base_output_file}.{volume_number:03d}"
+    
+    volume_info = {
+        'total_volumes': total_volumes,
+        'volume_number': volume_number,
+        'sequence_count': len(data),
+        'original_filename': base_output_file,
+        'format': 'FASTQ',
+        'is_plant': is_plant
+    }
+    
     with open(output_file, 'wb') as f_out:
+        write_volume_header(f_out, volume_info)
+        
+        annotations = [item[0] for item in data]
+        annotation_patterns, variable_parts = compress_annotation(annotations)
+
+        plus_patterns = None
+        plus_variables = None
+        if compress_plus:
+            plus_lines = [item[2] for item in data]
+            plus_patterns, plus_variables = compress_annotation(plus_lines)
+
+        sequences_data = [(seq, qual_data) for _, seq, _, qual_data in data]
+        
+        compressed_data = {
+            'annotation_patterns': annotation_patterns,
+            'variable_parts': variable_parts,
+            'plus_compressed': compress_plus,
+            'plus_patterns': plus_patterns,
+            'plus_variables': plus_variables,
+            'sequences': sequences_data
+        }
+        
         compressed = lzma.compress(pickle.dumps(compressed_data), preset=preset)
         f_out.write(compressed)
 
+def dna_write_compressed_fastq_with_volumes(data: List[Tuple[str, str, str, Tuple[bytes, bytes, int]]], 
+                                          output_file: str,
+                                          num_volumes: int,
+                                          compress_plus: bool = False,
+                                          preset: int = 3,
+                                          is_plant: bool = False):
+    volumes = split_sequences(data, num_volumes)
+    
+    for i, volume_data in enumerate(volumes, 1):
+        dna_write_compressed_fastq_volume(
+            volume_data,
+            output_file,
+            i,
+            num_volumes,
+            compress_plus,
+            preset,
+            is_plant
+        )
+
+def dna_write_compressed_fastq(data: List[Tuple[str, str, str, Tuple[bytes, bytes, int]]], 
+                             output_file: str, 
+                             compress_plus: bool = False, 
+                             preset: int = 3, 
+                             is_plant: bool = False,
+                             num_volumes: int = None):
+    if num_volumes is not None:
+        dna_write_compressed_fastq_with_volumes(data, output_file, num_volumes, compress_plus, preset, is_plant)
+    else:
+        annotations = [item[0] for item in data]
+        annotation_patterns, variable_parts = compress_annotation(annotations)
+
+        plus_patterns = None
+        plus_variables = None
+        if compress_plus:
+            plus_lines = [item[2] for item in data]
+            plus_patterns, plus_variables = compress_annotation(plus_lines)
+
+        sequences_data = [(seq, qual_data) for _, seq, _, qual_data in data]
+     
+        compressed_data = {
+            'format': 'FASTQ',
+            'is_plant': is_plant,
+            'annotation_patterns': annotation_patterns,
+            'variable_parts': variable_parts,
+            'plus_compressed': compress_plus,
+            'plus_patterns': plus_patterns,
+            'plus_variables': plus_variables,
+            'sequences': sequences_data
+        }
+
+        with open(output_file, 'wb') as f_out:
+            compressed = lzma.compress(pickle.dumps(compressed_data), preset=preset)
+            f_out.write(compressed)
 
 def dna_write_compressed_fasta(data: List[Tuple[str, str]], output_file: str, preset: int = 3, is_plant: bool = False):
     annotations = [item[0] for item in data]
@@ -345,6 +453,9 @@ def dna_write_compressed_fasta(data: List[Tuple[str, str]], output_file: str, pr
         f_out.write(compressed)
 
 def dna_read_compressed_file(file_path: str) -> Tuple[str, Union[List[Tuple[str, str]], List[Tuple[str, str, str, Tuple[bytes, bytes, int]]]]]:
+    if file_path.endswith('.001'):
+        return dna_read_compressed_volumes(file_path)
+    
     with open(file_path, 'rb') as f_in:
         compressed_data = pickle.loads(lzma.decompress(f_in.read()))
     
@@ -352,7 +463,7 @@ def dna_read_compressed_file(file_path: str) -> Tuple[str, Union[List[Tuple[str,
     is_plant = compressed_data.get('is_plant', False)
     
     if not file_format:
-        raise ValueError("Error")
+        raise ValueError("Unrecognized file format")
 
     if file_format == 'FASTA':
         annotations = decompress_annotation(
@@ -434,4 +545,135 @@ def dna_parallel_decompress(compressed_data: List[Tuple[str, bytes, str, Tuple[b
     except Exception as e:
         print(f"Error in parallel_decompress: {str(e)}")
         raise
+
+def dna_write_compressed_fasta_volume(data: List[Tuple[str, str]], 
+                                    base_output_file: str,
+                                    volume_number: int,
+                                    total_volumes: int,
+                                    preset: int = 3,
+                                    is_plant: bool = False):
+    """写入单个FASTA分卷文件"""
+    output_file = f"{base_output_file}.{volume_number:03d}"
+    
+    # 准备头部信息
+    volume_info = {
+        'total_volumes': total_volumes,
+        'volume_number': volume_number,
+        'sequence_count': len(data),
+        'original_filename': base_output_file,
+        'format': 'FASTA',
+        'is_plant': is_plant
+    }
+    
+    with open(output_file, 'wb') as f_out:
+        # 写入头部信息
+        write_volume_header(f_out, volume_info)
+        
+        # 压缩序列数据
+        annotations = [item[0] for item in data]
+        annotation_patterns, variable_parts = compress_annotation(annotations)
+        
+        compressed_data = {
+            'annotation_patterns': annotation_patterns,
+            'variable_parts': variable_parts,
+            'sequences': [seq for _, seq in data]
+        }
+        
+        # 写入压缩数据
+        compressed = lzma.compress(pickle.dumps(compressed_data), preset=preset)
+        f_out.write(compressed)
+
+def dna_write_compressed_fasta_with_volumes(data: List[Tuple[str, str]], 
+                                          output_file: str,
+                                          num_volumes: int,
+                                          preset: int = 3,
+                                          is_plant: bool = False):
+    """将FASTA数据分卷压缩"""
+    # 分割序列
+    volumes = split_sequences(data, num_volumes)
+    
+    # 压缩每个分卷
+    for i, volume_data in enumerate(volumes, 1):
+        dna_write_compressed_fasta_volume(
+            volume_data,
+            output_file,
+            i,
+            num_volumes,
+            preset,
+            is_plant
+        )
+
+def dna_read_compressed_volumes(first_volume_path: str) -> Tuple[str, Union[List[Tuple[str, str]], List[Tuple[str, str, str, Tuple[bytes, bytes, int]]]]]:
+    """读取并合并所有分卷文件"""
+    # 读取第一个分卷的头部信息
+    with open(first_volume_path, 'rb') as f_in:
+        header = read_volume_header(f_in)
+    
+    total_volumes = header['total_volumes']
+    base_path = first_volume_path[:-4]  # 移除.001后缀
+    all_sequences = []
+    
+    # 读取所有分卷
+    for volume_number in range(1, total_volumes + 1):
+        volume_path = f"{base_path}.{volume_number:03d}"
+        
+        if not os.path.exists(volume_path):
+            raise ValueError(f"Missing volume file: {volume_path}")
+        
+        with open(volume_path, 'rb') as f_in:
+            # 跳过头部信息
+            vol_header = read_volume_header(f_in)
+            # 读取压缩数据
+            compressed_data = pickle.loads(lzma.decompress(f_in.read()))
+            
+            # 解压注释
+            annotations = decompress_annotation(
+                compressed_data['annotation_patterns'],
+                compressed_data['variable_parts']
+            )
+            
+            if vol_header['format'] == 'FASTQ':
+                # 处理FASTQ格式
+                if compressed_data.get('plus_compressed', False):
+                    plus_lines = decompress_annotation(
+                        compressed_data['plus_patterns'],
+                        compressed_data['plus_variables']
+                    )
+                else:
+                    plus_lines = ['+'] * len(annotations)
+                
+                # 合并序列
+                for ann, (seq, qual_data), plus in zip(annotations, compressed_data['sequences'], plus_lines):
+                    all_sequences.append((ann, seq, plus, qual_data))
+            else:
+                # 处理FASTA格式
+                volume_sequences = list(zip(annotations, compressed_data['sequences']))
+                all_sequences.extend(volume_sequences)
+    
+    return vol_header['format'], all_sequences
+
+def dna_write_compressed_fasta(data: List[Tuple[str, str]], 
+                             output_file: str, 
+                             preset: int = 3, 
+                             is_plant: bool = False,
+                             num_volumes: int = None):
+    """写入压缩的FASTA文件，支持分卷"""
+    if num_volumes is not None:
+        dna_write_compressed_fasta_with_volumes(data, output_file, num_volumes, preset, is_plant)
+    else:
+        # 原有的单文件压缩逻辑保持不变
+        annotations = [item[0] for item in data]
+        annotation_patterns, variable_parts = compress_annotation(annotations)
+        
+        compressed_data = {
+            'format': 'FASTA',
+            'is_plant': is_plant,
+            'annotation_patterns': annotation_patterns,
+            'variable_parts': variable_parts,
+            'sequences': [seq for _, seq in data]
+        }
+        
+        with open(output_file, 'wb') as f_out:
+            compressed = lzma.compress(pickle.dumps(compressed_data), preset=preset)
+            f_out.write(compressed)
 

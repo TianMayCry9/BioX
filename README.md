@@ -96,7 +96,7 @@ biox -h
 
 This will print the following options:
 ```bash
-usage: biox.py [-h] [-c] [-d] -t {dna,rna,protein,file} [-l {1,2,3,4,5,6,7,8,9}] [-ps {ignore,compress}] [-n NUM_PROCESSES] [-p] [-s {2,3,4,5,6,7,8,9,10}] [-o OUTPUT] input_file
+usage: biox [-h] [-c] [-d] -t {dna,rna,protein,file} [-l {1,2,3,4,5,6,7,8,9}] [-ps {ignore,compress}] [-n NUM_PROCESSES] [-p] [-s {2,3,4,5,6,7,8,9,10}] [-o OUTPUT] input_file
 
 Biological Sequence Compression Tool
 

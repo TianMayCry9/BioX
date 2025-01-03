@@ -51,6 +51,9 @@ chmod +x install.sh
 install.bat
 ```
 
+### Download the Pre-built .exe File (Windows)
+Simply download the .exe application from our [GitHub Releases](https://github.com/TianMayCry9/BioX/releases/tag/v1.1.0), double-click to launch, and start compressing your files with ease!
+
 ## Usage
 
 ### Compress
@@ -67,6 +70,9 @@ biox -c -t dna -n 4 input.fasta
 
 # Process plant genomes
 biox -c -t dna -ps compress input.fasta
+
+# Volume Compression
+biox -c -s 4 input.fasta
 
 # Specify output file
 biox -c -t dna -o output.biox input.fasta
@@ -90,7 +96,7 @@ biox -h
 
 This will print the following options:
 ```bash
-usage: main.py [-h] [-c] [-d] -t {dna,rna,protein,file} [-l {1,2,3,4,5,6,7,8,9}] [-ps {ignore,compress}] [-n NUM_PROCESSES] [-p] [-o OUTPUT] input_file
+usage: biox.py [-h] [-c] [-d] -t {dna,rna,protein,file} [-l {1,2,3,4,5,6,7,8,9}] [-ps {ignore,compress}] [-n NUM_PROCESSES] [-p] [-s {2,3,4,5,6,7,8,9,10}] [-o OUTPUT] input_file
 
 Biological Sequence Compression Tool
 
@@ -110,6 +116,8 @@ options:
   -n NUM_PROCESSES, --num_processes NUM_PROCESSES
                         Number of parallel processes
   -p, --plant           Use plant genome compression scheme
+  -s {2,3,4,5,6,7,8,9,10}, --split {2,3,4,5,6,7,8,9,10}
+                        Split output into N volumes (2-10)
   -o OUTPUT, --output OUTPUT
                         Output file path (default: input_file.biox)
 ```

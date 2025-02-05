@@ -11,7 +11,7 @@ from Bio import Entrez
 
 Entrez.email = "x1058513236@gmail.com"
 
-from taxonomy import TaxonomyCache, TaxonomyLabeler
+from .taxonomy import TaxonomyCache, TaxonomyLabeler
 
 class BCDClassifier:
     def __init__(self, compressed_dir, taxonomy_level='class'):

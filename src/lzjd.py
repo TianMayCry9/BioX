@@ -6,7 +6,7 @@ from scipy.spatial.distance import squareform
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import LeaveOneOut
 from sklearn.metrics import f1_score
-from taxonomy import TaxonomyCache, TaxonomyLabeler
+from .taxonomy import TaxonomyCache, TaxonomyLabeler
 
 def read_fasta_folder(folder_path):
     sequences = []

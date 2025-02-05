@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="biox",
-    version="1.1.0",
+    version="1.2.0",
     description="A universal biological sequence compressor",
     author="Tianx Xiao",
     author_email="x1058513236l@gmail.com",
@@ -13,6 +13,9 @@ setup(
         "numpy>=1.19.0",
         "tqdm>=4.45.0",
         "multiprocess>=0.70.0",
+        "scikit-learn",        
+        "biopython",            
+        "taxonomy"
     ],
     entry_points={
         'console_scripts': [

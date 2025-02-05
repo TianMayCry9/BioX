@@ -1,7 +1,9 @@
 ![image](https://github.com/TianMayCry9/BioX/blob/master/BioX.png)
-# BioX - Biological Sequence Compression Tool
+# BioX - Biological Sequence Compression and Analysis Tool
 
-BioX is an efficient, lossless compression tool designed specifically for biological sequence data. It utilizes innovative compression algorithms to achieve high compression ratios and fast decompression speeds. It supports compression of DNA, RNA, protein sequences, and FASTQ data, and can handle sequences with or without quality scores. Fully supports FASTA and FASTQ formats, including all special characters, and there are no limitations on sequence length or quantity.
+BioX is an efficient, lossless compression tool designed specifically for biological sequence data. It utilizes innovative compression algorithms to achieve high compression ratios and fast decompression speeds. It can handle all file types, especially DNA, RNA, and protein FASTA and FASTQ sequence files, and can handle sequences with or without quality scores. Fully supports FASTA and FASTQ formats, including all special characters, and there are no limitations on sequence length or quantity.
+
+In addition to compression, BioX offers sequence analysis features, including distance calculation methods (ncd, bcd, lzjd), KNN classification with customizable neighbor settings, taxonomy-based classification at various NCBI levels, distance correction coefficients, and phylogenetic tree construction.
 
 ## Features
 
@@ -88,6 +90,34 @@ biox -d -t dna input.biox
 biox -d -t dna -o output.fasta input.biox
 ```
 
+### Sequence Analysis
+
+```bash
+# Basic usage for analysis
+biox -a -i input.fasta
+
+# Specify distance calculation method (ncd, bcd, lzjd)
+biox -a -i input.fasta --method ncd
+
+# Specify NCBI taxonomy level
+biox -a -i input.fasta --tax class
+
+# KNN classification with 1 neighbors
+biox -a -i input.fasta -k 1
+
+# Set distance correction coefficient
+biox -a -i input.fasta --alpha 0.3
+
+# Set confidence threshold for KNN classification
+biox -a -i input.fasta --confidence 0.95
+
+# Use parallel jobs for analysis
+biox -a -i input.fasta -j 4
+
+# Construct phylogenetic tree
+biox -a -i input.fasta --tree single
+```
+
 ### Parameter Overview
 To see the possible options type：
 ```bash
@@ -96,30 +126,46 @@ biox -h
 
 This will print the following options:
 ```bash
-usage: biox [-h] [-c] [-d] -t {dna,rna,protein,file} [-l {1,2,3,4,5,6,7,8,9}] [-ps {ignore,compress}] [-n NUM_PROCESSES] [-p] [-s {2,3,4,5,6,7,8,9,10}] [-o OUTPUT] input_file
+usage: biox [-h] (-c | -d | -a) -i INPUT [-o OUTPUT] [-t {dna,rna,protein,file}] [-l {1,2,3,4,5,6,7,8,9}] [-ps {ignore,compress}] [--num_processes NUM_PROCESSES] [-p]
+               [--method {ncd,bcd,lzjd}] [--tax {kingdom,phylum,class,order,family,genus,species}] [-k NEIGHBORS] [--alpha ALPHA] [--confidence CONFIDENCE] [-j JOBS]
+               [--tree {single,average,weighted,complete}]
 
-Biological Sequence Compression Tool
-
-positional arguments:
-  input_file            Input file path (FASTQ/FASTA)
+BioX: A tool for biological sequence compression and analysis
 
 options:
   -h, --help            show this help message and exit
-  -c, --compress        Compression mode
-  -d, --decompress      Decompression mode
+  -c, --compress        Compress mode
+  -d, --decompress      Decompress mode
+  -a, --analysis        Sequence analysis mode
+  -i INPUT, --input INPUT
+                        Input file/directory path
+  -o OUTPUT, --output OUTPUT
+                        Output file/directory path
+
+Compression/Decompression options:
   -t {dna,rna,protein,file}, --type {dna,rna,protein,file}
                         Sequence type (dna/rna/protein) or regular file
   -l {1,2,3,4,5,6,7,8,9}, --level {1,2,3,4,5,6,7,8,9}
-                        Compression level (1-9, default: 5)
+                        Compression level (1-9, default: 3)
   -ps {ignore,compress}, --plus_line {ignore,compress}
                         FASTQ plus line handling
-  -n NUM_PROCESSES, --num_processes NUM_PROCESSES
+  --num_processes NUM_PROCESSES
                         Number of parallel processes
   -p, --plant           Use plant genome compression scheme
-  -s {2,3,4,5,6,7,8,9,10}, --split {2,3,4,5,6,7,8,9,10}
-                        Split output into N volumes (2-10)
-  -o OUTPUT, --output OUTPUT
-                        Output file path (default: input_file.biox)
+
+Sequence Analysis options:
+  --method {ncd,bcd,lzjd}, -m {ncd,bcd,lzjd}
+                        Distance calculation method
+  --tax {kingdom,phylum,class,order,family,genus,species}, --taxonomy-level {kingdom,phylum,class,order,family,genus,species}
+                        NCBI taxonomy level for classification
+  -k NEIGHBORS, --neighbors NEIGHBORS
+                        Number of neighbors for KNN classification
+  --alpha ALPHA         Distance correction coefficient (0-1)
+  --confidence CONFIDENCE
+                        Confidence threshold for classification
+  -j JOBS, --jobs JOBS  Number of parallel jobs
+  --tree {single,average,weighted,complete}
+                        Method for phylogenetic tree construction
 ```
 
 ## FAQ
@@ -137,6 +183,9 @@ options:
 
 4.**Will the "+" line in FASTQ be ignored?**
    - BioX automatically ignores the "+" line in FASTQ files, but you can manually retain it using the -ps parameter.
+
+5.**When should I use the KNN correction feature?**
+   - The KNN correction feature should be used when there is a relatively large sample size of the biological data, as the classification is based on the NCBI taxonomy standards.
 
 ## Citation
 

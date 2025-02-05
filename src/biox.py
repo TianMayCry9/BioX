@@ -1,15 +1,21 @@
 import argparse
 import os
 import time
-from .dna import (detect_file_format, read_fasta, read_fastq,
-                dna_parallel_compress_fasta, dna_parallel_compress,
-                dna_write_compressed_fasta, dna_write_compressed_fastq,
-                dna_read_compressed_file, dna_parallel_decompress_fasta,
-                dna_parallel_decompress)
-from .rna import (rna_parallel_compress_fasta, rna_parallel_compress,
-                rna_write_compressed_fasta, rna_write_compressed_fastq,
-                rna_read_compressed_file, rna_parallel_decompress_fasta,
-                rna_parallel_decompress)
+from sklearn.metrics import f1_score
+from .dna import (
+    detect_file_format, read_fasta, read_fastq,
+    dna_parallel_compress, dna_parallel_decompress,
+    dna_parallel_compress_fasta, dna_parallel_decompress_fasta,
+    dna_write_compressed_fastq, dna_write_compressed_fasta,
+    dna_read_compressed_file
+)
+
+from .rna import (
+    rna_parallel_compress, rna_parallel_decompress,
+    rna_parallel_compress_fasta, rna_parallel_decompress_fasta,
+    rna_write_compressed_fastq, rna_write_compressed_fasta,
+    rna_read_compressed_file
+)
 
 from .protein import (
     protein_parallel_compress, protein_parallel_decompress,
@@ -19,39 +25,161 @@ from .protein import (
 
 from .file import file_compress, file_decompress
 
+from .ncd import NCDClassifier
+from .lzjd import LZJDKNNCorrector, read_fasta_folder
+from .wbncd import BCDClassifier
+
+from .tools import process_all, finally_cleanup
+
+def perform_distance_analysis(args):
+    output_dir = args.output or f'biox_{args.method}_output'
+    os.makedirs(output_dir, exist_ok=True)
+    
+    try:
+        if args.method == 'lzjd':
+            sequences = read_fasta_folder(args.input)
+            if not sequences:
+                raise ValueError("No valid sequence files found")
+            
+            corrector = LZJDKNNCorrector(
+                sequences=sequences,
+                taxonomy_level=args.taxonomy_level,
+                confidence_threshold=args.confidence
+            )
+            
+            predictions, true_labels = corrector.perform_knn_classification(k=args.neighbors)
+            corrected_distances = corrector.correct_distances(base_alpha=args.alpha)
+
+            macro_f1 = f1_score(true_labels, predictions, average='macro')
+            
+            corrector.save_results(
+                predictions, true_labels, corrector.probability_matrix,
+                macro_f1, output_dir, tree_method=args.tree
+            )
+        else:
+            if not process_all(args.input, args.input, args.type):
+                raise ValueError("Failed to process input sequences")
+            
+            classifier_class = NCDClassifier if args.method == 'ncd' else BCDClassifier
+            classifier = classifier_class(
+                compressed_dir=args.input,
+                taxonomy_level=args.taxonomy_level
+            )
+            
+            sequence_names, labels = classifier.load_compressed_sizes()
+            if not sequence_names:
+                raise ValueError("No valid sequence files found")
+            
+            classifier.labels = labels
+            classifier.build_distance_matrix(sequence_names, n_jobs=args.jobs)
+            
+            predictions, true_labels, probabilities, macro_f1 = \
+                classifier.perform_knn_classification(k=args.neighbors)
+            
+            classifier.confidence_threshold = args.confidence
+            classifier.correct_distances(base_alpha=args.alpha)
+            
+            classifier.save_results(
+                predictions, true_labels, probabilities, macro_f1,
+                output_dir, tree_method=args.tree
+            )
+            
+            finally_cleanup(args.input)
+        
+        print(f"Analysis completed. Results saved to {output_dir}")
+        
+    except Exception as e:
+        print(f"Error during {args.method.upper()} analysis: {str(e)}")
+        raise
+
 def main():
-    parser = argparse.ArgumentParser(description='Biological Sequence Compression Tool')
-    parser.add_argument('input_file', help='Input file path (FASTQ/FASTA)')
-    parser.add_argument('-c', '--compress', action='store_true', help='Compression mode')
-    parser.add_argument('-d', '--decompress', action='store_true', help='Decompression mode')
-    parser.add_argument('-t', '--type', choices=['dna', 'rna', 'protein', 'file'], 
-                       required=True, help='Sequence type (dna/rna/protein) or regular file')
-    parser.add_argument('-l', '--level', type=int, choices=range(1, 10), 
-                       default=9, help='Compression level (1-9, default: 9)')
-    parser.add_argument('-ps', '--plus_line', choices=['ignore', 'compress'], 
-                       default='ignore', help='FASTQ plus line handling')
-    parser.add_argument('-n', '--num_processes', type=int, default=None, 
-                       help=f'Number of parallel processes')
-    parser.add_argument('-p', '--plant', action='store_true', help='Use plant genome compression scheme')
-    parser.add_argument('-s', '--split', type=int, choices=range(2, 11),
+    parser = argparse.ArgumentParser(description='BioX: A tool for biological sequence compression and analysis')
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument('-c', '--compress', action='store_true',
+                           help='Compress mode')
+    mode_group.add_argument('-d', '--decompress', action='store_true',
+                           help='Decompress mode')
+    mode_group.add_argument('-a', '--analysis', action='store_true',
+                           help='Sequence analysis mode')
+    parser.add_argument('-i', '--input',
+                       required=True,
+                       help='Input file/directory path')
+    parser.add_argument('-o', '--output',
+                       help='Output file/directory path')
+    
+    comp_group = parser.add_argument_group('Compression/Decompression options')
+    comp_group.add_argument('-t', '--type', 
+                           choices=['dna', 'rna', 'protein', 'file'],
+                           help='Sequence type (dna/rna/protein) or regular file')
+    comp_group.add_argument('-l', '--level', 
+                           type=int, 
+                           choices=range(1, 10),
+                           default=3,
+                           help='Compression level (1-9, default: 3)')
+    comp_group.add_argument('-ps', '--plus_line',
+                           choices=['ignore', 'compress'],
+                           default='ignore',
+                           help='FASTQ plus line handling')
+    comp_group.add_argument('--num_processes',
+                           type=int,
+                           default=None,
+                           help='Number of parallel processes')
+    comp_group.add_argument('-p', '--plant',
+                           action='store_true',
+                           help='Use plant genome compression scheme')
+    comp_group.add_argument('-s', '--split', type=int, choices=range(2, 11),
                        help='Split output into N volumes (2-10)')
-    parser.add_argument('-o', '--output', help='Output file path (default: input_file.biox)')
+    
+    analysis_group = parser.add_argument_group('Sequence Analysis options')
+    analysis_group.add_argument('--method', '-m',
+                              choices=['ncd', 'wbncd', 'lzjd'],
+                              default='ncd',
+                              help='Distance calculation method')
+    analysis_group.add_argument('--tax', '--taxonomy-level',
+                              dest='taxonomy_level',
+                              choices=['kingdom', 'phylum', 'class', 'order', 
+                                      'family', 'genus', 'species'],
+                              default='class',
+                              help='NCBI taxonomy level for classification')
+    analysis_group.add_argument('-k', '--neighbors',
+                              type=int,
+                              default=1,
+                              help='Number of neighbors for KNN classification')
+    analysis_group.add_argument('--alpha',
+                              type=float,
+                              default=0.3,
+                              help='Distance correction coefficient (0-1)')
+    analysis_group.add_argument('--confidence',
+                              type=float,
+                              default=0.6,
+                              help='Confidence threshold for classification')
+    analysis_group.add_argument('-j', '--jobs',
+                              type=int,
+                              default=os.cpu_count(),
+                              help='Number of parallel jobs')
+    analysis_group.add_argument('--tree',
+                              choices=['single', 'average', 'weighted', 'complete'],
+                              default='single',
+                              help='Method for phylogenetic tree construction')
     
     args = parser.parse_args()
 
+    if args.analysis:
+        if not args.type and args.method != 'lzjd':
+            args.type = 'dna'
+            print("No sequence type specified, using default type: DNA")
+        perform_distance_analysis(args)
+        return
+
     if not args.output:
         if args.decompress:
-            if args.input_file.endswith('.biox'):
-                args.output = args.input_file[:-5] + '.decoded'
-            elif args.input_file.endswith('.biox.001'):
-                args.output = args.input_file[:-9] + '.decoded'
-            else:
-                args.output = args.input_file + '.decoded'
+            if args.input.endswith('.biox'):
+                args.output = args.input[:-5] + '.decoded'
         else:
-            args.output = args.input_file + '.biox'
+            args.output = args.input + '.biox'
 
-    if not os.path.exists(args.input_file):
-        print(f"Error: Input file '{args.input_file}' does not exist")
+    if not os.path.exists(args.input):
+        print(f"Error: Input file '{args.input}' does not exist")
         return
 
     if not args.compress and not args.decompress:
@@ -60,12 +188,12 @@ def main():
     try:
         if args.type == 'file':
             if args.compress:
-                print(f"\nCompressing file: {args.input_file}")
-                original_size = os.path.getsize(args.input_file)
+                print(f"\nCompressing file: {args.input}")
+                original_size = os.path.getsize(args.input)
                 print(f"Original file size: {original_size / 1024 / 1024:.2f} MB")
                 
                 start_time = time.time()
-                file_compress(args.input_file, args.output, preset=args.level)
+                file_compress(args.input, args.output, preset=args.level)
                 end_time = time.time()
                 compress_time = end_time - start_time
                 
@@ -78,10 +206,10 @@ def main():
                 print(f"- Compression ratio: {compression_ratio:.2f}x")
                 
             else:  
-                print(f"\nDecompressing file: {args.input_file}")
+                print(f"\nDecompressing file: {args.input}")
                 start_time = time.time()
                 
-                file_decompress(args.input_file, args.output)
+                file_decompress(args.input, args.output)
                 
                 end_time = time.time()
                 print(f"\nDecompression completed! Time taken: {end_time - start_time:.2f} seconds")
@@ -89,10 +217,10 @@ def main():
             return
 
         if args.compress:
-            file_format = detect_file_format(args.input_file)
+            file_format = detect_file_format(args.input)
             print(f"Detected file format: {file_format}")
 
-            original_size = os.path.getsize(args.input_file)
+            original_size = os.path.getsize(args.input)
             print(f"Original file size: {original_size / 1024 / 1024:.2f} MB")
 
             if args.type == 'protein':
@@ -100,8 +228,8 @@ def main():
                     print("Error: Protein sequences only support FASTA format")
                     return
                 
-                print(f"\nReading FASTA file: {args.input_file}")
-                sequences = protein_read_fasta(args.input_file)
+                print(f"\nReading FASTA file: {args.input}")
+                sequences = protein_read_fasta(args.input)
                 total_sequences = len(sequences)
                 print(f"Total sequences: {total_sequences}")
                 
@@ -132,11 +260,11 @@ def main():
                     return
 
                 if file_format == 'fastq':
-                    print(f"Reading FASTQ file: {args.input_file}")
-                    sequences = read_fastq(args.input_file)
+                    print(f"Reading FASTQ file: {args.input}")
+                    sequences = read_fastq(args.input)
                 else:
-                    print(f"Reading FASTA file: {args.input_file}")
-                    sequences = read_fasta(args.input_file)
+                    print(f"Reading FASTA file: {args.input}")
+                    sequences = read_fasta(args.input)
 
                 total_sequences = len(sequences)
                 print(f"Total sequences: {total_sequences}")
@@ -145,11 +273,11 @@ def main():
                 start_time = time.time()
                 if args.type == 'dna' or args.type == 'rna':
                     compressed_data = parallel_compress(sequences, 
-                                                     processes=args.num_processes,
-                                                     is_plant=args.plant)
+                                                        processes=args.num_processes,
+                                                        is_plant=args.plant)
                 else:
                     compressed_data = parallel_compress(sequences, 
-                                                     processes=args.num_processes)
+                                                        processes=args.num_processes)
                 
                 if file_format == 'fastq':
                     write_compressed(compressed_data, args.output, 
@@ -175,13 +303,12 @@ def main():
                     compressed_size = os.path.getsize(args.output)
 
             compression_ratio = compressed_size / original_size 
-
             print(f"\nCompression completed:")
             print(f"- Time taken: {compress_time:.2f} seconds")
             print(f"- Compressed size: {compressed_size / 1024 / 1024:.2f} MB")
             print(f"- Compression ratio: {compression_ratio:.2f}x")
             print(f"- Processing speed: {total_sequences / compress_time:.2f} sequences/second")
-            
+
             if args.split:
                 print("\nVolume sizes:")
                 for i in range(1, args.split + 1):
@@ -189,18 +316,17 @@ def main():
                     if os.path.exists(volume_path):
                         volume_size = os.path.getsize(volume_path)
                         print(f"- Volume {i:03d}: {volume_size / 1024 / 1024:.2f} MB")
-
         else:
-            print(f"\nReading compressed file: {args.input_file}")
+            print(f"\nReading compressed file: {args.input}")
             start_time = time.time()
 
             if args.type == 'protein':
-                compressed_data = protein_read_compressed(args.input_file)
+                compressed_data = protein_read_compressed(args.input)
                 decompressed_data = protein_parallel_decompress(compressed_data, processes=args.num_processes)
                 file_format = 'fasta'
             else:
                 read_func = dna_read_compressed_file if args.type == 'dna' else rna_read_compressed_file
-                file_format, compressed_data = read_func(args.input_file)
+                file_format, compressed_data = read_func(args.input)
                 
                 if file_format.endswith('FASTQ'):
                     decompress_func = dna_parallel_decompress if args.type == 'dna' else rna_parallel_decompress

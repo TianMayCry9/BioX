@@ -94,28 +94,28 @@ biox -d -t dna -o output.fasta input.biox
 
 ```bash
 # Basic usage for analysis
-biox -a -i input.fasta
+biox -a -i /tree_test/
 
 # Specify distance calculation method (ncd, bcd, lzjd)
-biox -a -i input.fasta --method ncd
+biox -a -i /tree_test/ --method ncd
 
 # Specify NCBI taxonomy level
-biox -a -i input.fasta --tax class
+biox -a -i /tree_test/ --tax class
 
 # KNN classification with 1 neighbors
-biox -a -i input.fasta -k 1
+biox -a -i /tree_test/ -k 1
 
 # Set distance correction coefficient
-biox -a -i input.fasta --alpha 0.3
+biox -a -i /tree_test/ --alpha 0.3
 
 # Set confidence threshold for KNN classification
-biox -a -i input.fasta --confidence 0.95
+biox -a -i /tree_test/ --confidence 0.95
 
 # Use parallel jobs for analysis
-biox -a -i input.fasta -j 4
+biox -a -i /tree_test/ -j 4
 
 # Construct phylogenetic tree
-biox -a -i input.fasta --tree single
+biox -a -i /tree_test/ --tree single
 ```
 
 ### Parameter Overview

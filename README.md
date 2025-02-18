@@ -62,22 +62,22 @@ Simply download the .exe application from our [GitHub Releases](https://github.c
 
 ```bash
 # Basic usage
-biox -c -t dna input.fasta
+biox -c -t dna -i input.fasta
 
 # Specify compression level (1-9, default is 5)
-biox -c -t dna -l 9 input.fasta
+biox -c -t dna -l 9 -i input.fasta
 
 # Use multiprocessing for acceleration
-biox -c -t dna -n 4 input.fasta
+biox -c -t dna -n 4 -i input.fasta
 
 # Process plant genomes
-biox -c -t dna -ps compress input.fasta
+biox -c -t dna -ps compress -i input.fasta
 
 # Volume Compression
-biox -c -s 4 input.fasta
+biox -c -s 4 -i input.fasta
 
 # Specify output file
-biox -c -t dna -o output.biox input.fasta
+biox -c -t dna -o output.biox -i input.fasta
 ```
 
 ### Decompress
